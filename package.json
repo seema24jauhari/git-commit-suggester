@@ -1,0 +1,19 @@
+{
+  "name": "git-commit-suggester",
+  "displayName": "Git Commit Suggester",
+  "version": "0.0.2",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./src/extension.js",
+  "activationEvents": ["*"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitcommit.suggest",
+        "title": "Suggest Commit Message"
+      }
+    ]
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0"
+  }
+}
