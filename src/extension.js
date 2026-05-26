@@ -2,12 +2,26 @@ const vscode = require('vscode');
 const { execSync } = require('child_process');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// ✅ Add here
 async function getRepo(git) {
-  if (git.repositories.length === 1) return git.repositories[0];
+  // filter only repos with staged changes
+  const reposWithChanges = git.repositories.filter(r => {
+    try {
+      const diff = execSync('git diff --staged', { cwd: r.rootUri.fsPath }).toString();
+      return diff.length > 0;
+    } catch {
+      return false;
+    }
+  });
 
-  const picks = git.repositories.map(r => ({
-    label: r.rootUri.fsPath.split('/').pop(),
+  if (reposWithChanges.length === 0) {
+    vscode.window.showWarningMessage('No staged files in any repository! Run git add first.');
+    return null;
+  }
+
+  if (reposWithChanges.length === 1) return reposWithChanges[0];
+
+  const picks = reposWithChanges.map(r => ({
+    label: r.rootUri.fsPath.split(/[\\/]/).pop(),
     description: r.rootUri.fsPath,
     repo: r
   }));
@@ -19,105 +33,67 @@ async function getRepo(git) {
   return selected?.repo;
 }
 
-// On first use, prompt and store the key securely
 async function getApiKey(context) {
   let key = await context.secrets.get('geminiApiKey');
   if (!key) {
     key = await vscode.window.showInputBox({
       prompt: 'Enter your Gemini API key',
-      password: true, // masks the input
+      password: true,
     });
     if (key) await context.secrets.store('geminiApiKey', key);
   }
   return key;
 }
 
-// In suggestCommitMessage, fetch key at runtime
-async function suggestCommitMessage(context) {  // receive context  
+async function suggestCommitMessage(context) {
   const GEMINI_API_KEY = await getApiKey(context);
   if (!GEMINI_API_KEY) return;
 
-  console.log('Using Gemini API Key:', GEMINI_API_KEY)
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceFolder) {
-      vscode.window.showErrorMessage('No workspace folder found!');
-      return;
-    }
-
-    // Get staged diff using git extension repo path directly
     const gitExtension = vscode.extensions.getExtension('vscode.git').exports;
     const git = gitExtension.getAPI(1);
     const repo = await getRepo(git);
-    if (!repo) return;
-
-    if (!repo) {
-      vscode.window.showErrorMessage('No git repo found!');
-      return;
-    }
+    if (!repo) return; // ✅ only one check, covers both "no repo" and "user cancelled"
 
     const repoPath = repo.rootUri.fsPath;
-    console.log('REPO PATH:', repoPath);
-
-    // Add this line to verify git works in that path
-    const status = execSync('git status', { cwd: repoPath }).toString();
-    console.log('GIT STATUS:', status);
-
     const diff = execSync('git diff --staged', { cwd: repoPath }).toString();
+
     if (!diff) {
-      vscode.window.showWarningMessage(`No staged files! Run git add first.${repoPath}`);
+      vscode.window.showWarningMessage(`No staged files! Run git add first. (${repoPath})`);
       return;
     }
 
-    // Show progress
     await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: '⏳ Generating commit message...' },
+      { location: vscode.ProgressLocation.Notification, 
+        title: '⏳ Generating commit message...',     
+        cancellable: true  // ✅ shows X button to dismiss
+      },
       async () => {
         const result = await model.generateContent(
-          `You are a git commit message writer. Analyze the diff and write a clear, human-readable commit message.
+            `Write a git commit message for this diff. Max 2 lines only.
 
-          Format: <type>(<scope>): <what changed and why in plain English>
+            Line 1: <type>(<scope>): <what changed> — max 50 chars
+            Line 2: (optional) one short sentence on WHY only if needed
 
-          Types: feat, fix, docs, refactor, chore, style, test
+            Types: feat, fix, docs, refactor, chore, style, test
+            No explanations, no paragraphs, no "This commit...", no periods.
 
-          Rules:
-          - First line: 50 chars maximum summary of WHAT changed
-          - Second line (optional): only if truly needed, ONE short sentence on WHY
-          - STRICTLY max 2 lines, no more
-          - No bullet points, no paragraphs, no headers, no extra explanation
-          - Use simple words, no jargon
-          - No periods at the end
-          - No quotes
-          - NEVER start with "This commit..." 
-
-          Examples of GOOD messages:
-          feat(auth): add Google login so users can skip manual signup
-          refactor(api): simplify error handling to reduce repeated code
-
-          fix(cart): prevent duplicate items when clicking add button fast
-          Added debounce since users were triggering multiple API calls
-
-          Diff:
-          ${diff}`        
+            Diff:
+            ${diff}`
         );
-        const message = result.response.text().trim();
 
-        // Copy to clipboard
+        const message = result.response.text().trim();
         await vscode.env.clipboard.writeText(message);
 
-        // Show with option to fill SCM box
         const action = await vscode.window.showInformationMessage(
           `✅ ${message}`,
           'Fill Commit Box'
         );
 
         if (action === 'Fill Commit Box') {
-          const gitExtension = vscode.extensions.getExtension('vscode.git').exports;
-          const git = gitExtension.getAPI(1);
-          const repo = git.repositories[0];
           if (repo) repo.inputBox.value = message;
         }
       }
@@ -130,10 +106,9 @@ async function suggestCommitMessage(context) {  // receive context
 
 function activate(context) {
   console.log('✅ Extension Activated!');
-
-   const disposable = vscode.commands.registerCommand(
+  const disposable = vscode.commands.registerCommand(
     'gitcommit.suggest',
-    () => suggestCommitMessage(context)  // arrow function, not just suggestCommitMessage
+    () => suggestCommitMessage(context)
   );
   context.subscriptions.push(disposable);
 }
