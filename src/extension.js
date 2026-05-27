@@ -66,38 +66,34 @@ async function suggestCommitMessage(context) {
       return;
     }
 
+
+    let message = '';
+
     await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, 
-        title: '⏳ Generating commit message...',     
-        cancellable: true  // ✅ shows X button to dismiss
-      },
+      { location: vscode.ProgressLocation.Notification, title: '⏳ Generating commit message...' },
       async () => {
         const result = await model.generateContent(
-            `Write a git commit message for this diff. Max 2 lines only.
+          `Write a git commit message for this diff. Max 2 lines only.
 
-            Line 1: <type>(<scope>): <what changed> — max 50 chars
-            Line 2: (optional) one short sentence on WHY only if needed
+          Line 1: <type>(<scope>): <what changed> — max 50 chars
+          Line 2: (optional) one short sentence on WHY only if needed
 
-            Types: feat, fix, docs, refactor, chore, style, test
-            No explanations, no paragraphs, no "This commit...", no periods.
+          Types: feat, fix, docs, refactor, chore, style, test
+          No explanations, no paragraphs, no "This commit...", no periods.
 
-            Diff:
-            ${diff}`
+          Diff:
+          ${diff}`
         );
-
-        const message = result.response.text().trim();
+        message = result.response.text().trim();
         await vscode.env.clipboard.writeText(message);
-
-        const action = await vscode.window.showInformationMessage(
-          `✅ ${message}`,
-          'Fill Commit Box'
-        );
-
-        if (action === 'Fill Commit Box') {
-          if (repo) repo.inputBox.value = message;
-        }
-      }
+      } // ✅ first popup closes here
     );
+
+    // ✅ second popup shows after first is gone
+    const action = await vscode.window.showInformationMessage(`✅ ${message}`, 'Fill Commit Box');
+    if (action === 'Fill Commit Box') {
+      if (repo) repo.inputBox.value = message;
+    }
 
   } catch (err) {
     vscode.window.showErrorMessage(`Error: ${err.message}`);

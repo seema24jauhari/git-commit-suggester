@@ -20,11 +20,24 @@ A VS Code extension that automatically generates meaningful git commit messages 
 ```
 git add .                          # Stage your files
 Ctrl+Shift+P                       # Open Command Palette
-→ "Suggest Commit Message"         # Run the command
+→ "Git: Suggest Commit Message"         # Run the command
 → AI reads your staged diff        # Analyzes changes
 → Generates commit message         # e.g. "feat(auth): add JWT token refresh logic"
 → Auto-fills commit box ✅         # Ready to commit!
 ```
+
+### Update Gemini API key
+```
+Ctrl+Shift+P                       # Open Command Palette
+→  Git: Update Gemini API Key"
+```
+
+### Delete Gemini API key
+```
+Ctrl+Shift+P                       # Open Command Palette
+→  Git: Delete Gemini API Key"
+```
+
 
 ---
 
