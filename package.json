@@ -13,7 +13,15 @@
     "commands": [
       {
         "command": "gitcommit.suggest",
-        "title": "Suggest Commit Message"
+        "title": "Git: Suggest Commit Message"
+      },
+      {
+        "command": "gitcommit.updateKey",
+        "title": "Git: Update Gemini API Key"
+      },
+      {
+        "command": "gitcommit.deleteKey",
+        "title": "Git: Delete Gemini API Key"
       }
     ]
   },

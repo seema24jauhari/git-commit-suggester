@@ -104,13 +104,37 @@ async function suggestCommitMessage(context) {
   }
 }
 
+
+
+
 function activate(context) {
   console.log('✅ Extension Activated!');
   const disposable = vscode.commands.registerCommand(
     'gitcommit.suggest',
     () => suggestCommitMessage(context)
   );
+
+  // Update key
+  const updateKey = vscode.commands.registerCommand('gitcommit.updateKey', async () => {
+    const key = await vscode.window.showInputBox({
+      prompt: 'Enter new Gemini API key',
+      password: true,
+    });
+    if (key) {
+      await context.secrets.store('geminiApiKey', key);
+      vscode.window.showInformationMessage('✅ Gemini API key updated!');
+    }
+  });
+
+  // Delete key
+  const deleteKey = vscode.commands.registerCommand('gitcommit.deleteKey', async () => {
+    await context.secrets.delete('geminiApiKey');
+    vscode.window.showInformationMessage('🗑️ Gemini API key removed!');
+  });
+
   context.subscriptions.push(disposable);
+  context.subscriptions.push(updateKey, deleteKey);
+
 }
 
 function deactivate() {}
